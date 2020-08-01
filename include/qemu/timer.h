@@ -4,6 +4,9 @@
 #include "qemu/bitops.h"
 #include "qemu/notify.h"
 #include "qemu/host-utils.h"
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#endif
 
 #define NANOSECONDS_PER_SECOND 1000000000LL
 
@@ -815,7 +818,27 @@ static inline int64_t get_clock_realtime(void)
 {
     struct timeval tv;
 
+#ifdef CONFIG_ESESC
+    static struct timeval start_time={0,0};
+    if(start_time.tv_sec==0) {
+      int ret = gettimeofday(&start_time,0);
+      if (ret<0) {
+        fprintf(stderr,"ERROR: problem getting the time\n");
+      }
+    }
+    tv = start_time;
+    uint64_t nsticks = QEMUReader_get_time();
+
+    tv.tv_usec += nsticks/1e6;
+    while (tv.tv_usec>1e6) {
+      tv.tv_sec++;
+      tv.tv_usec -= 1e6;
+    }
+
+    //fprintf(stderr,"QEMU Time: sec %ld, usec %ld, ntics %llu\n",tv.tv_sec, tv.tv_usec, (unsigned long long )nsticks);
+#else
     gettimeofday(&tv, NULL);
+#endif
     return tv.tv_sec * 1000000000LL + (tv.tv_usec * 1000);
 }
 

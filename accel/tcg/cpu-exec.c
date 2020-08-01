@@ -38,6 +38,10 @@
 #include "sysemu/cpus.h"
 #include "sysemu/replay.h"
 
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#endif
+
 /* -icount align implementation. */
 
 typedef struct SyncClocks {
@@ -443,6 +447,9 @@ static inline bool cpu_handle_halt(CPUState *cpu)
         }
 
         cpu->halted = 0;
+#ifdef CONFIG_ESESC
+        QEMUReader_cpu_start(cpu->fid);
+#endif
     }
 
     return false;

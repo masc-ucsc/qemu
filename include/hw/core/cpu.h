@@ -456,6 +456,11 @@ struct CPUState {
 
     int hvf_fd;
 
+#ifdef CONFIG_ESESC
+    uint32_t fid; /* simu flow id */
+    uint64_t icount; /* instruction count */
+#endif
+
     /* track IOMMUs whose translations we've cached in the TCG TLB */
     GArray *iommu_notifiers;
 };

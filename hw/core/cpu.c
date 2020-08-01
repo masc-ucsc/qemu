@@ -33,6 +33,9 @@
 #include "hw/qdev-properties.h"
 #include "trace-root.h"
 #include "qemu/plugin.h"
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#endif
 
 CPUInterruptHandler cpu_interrupt_handler;
 
@@ -64,6 +67,9 @@ CPUState *cpu_create(const char *typename)
         object_unref(OBJECT(cpu));
         exit(EXIT_FAILURE);
     }
+#ifdef CONFIG_ESESC
+    cpu->fid = QEMUReader_cpu_start(cpu->fid);
+#endif
     return cpu;
 }
 
@@ -111,6 +117,9 @@ void cpu_reset_interrupt(CPUState *cpu, int mask)
 
 void cpu_exit(CPUState *cpu)
 {
+#ifdef CONFIG_ESESC
+    QEMUReader_cpu_stop(cpu->fid);
+#endif
     atomic_set(&cpu->exit_request, 1);
     /* Ensure cpu_exec will see the exit request after TCG has exited.  */
     smp_wmb();

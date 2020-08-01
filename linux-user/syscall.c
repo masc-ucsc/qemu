@@ -126,6 +126,11 @@
 #include "fd-trans.h"
 #include "tcg/tcg.h"
 
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+static struct timespec start_time={0,0};
+#endif
+
 #ifndef CLONE_IO
 #define CLONE_IO                0x80000000      /* Clone io context */
 #endif
@@ -1197,9 +1202,34 @@ static inline abi_long copy_to_user_timeval(abi_ulong target_tv_addr,
     if (!lock_user_struct(VERIFY_WRITE, target_tv, target_tv_addr, 0)) {
         return -TARGET_EFAULT;
     }
+#ifdef CONFIG_ESESC
+    {
+      struct timespec curr_time;
 
+      if(start_time.tv_sec==0) {
+        int ret = clock_gettime(0,&start_time);
+        if (ret<0) {
+          fprintf(stderr,"ERROR: problem getting the time\n");
+        }
+      }
+      curr_time = start_time;
+      uint64_t nsticks = QEMUReader_get_time();
+
+      curr_time.tv_nsec += nsticks;
+      while (curr_time.tv_nsec>1e9) {
+        curr_time.tv_sec++;
+        curr_time.tv_nsec -= 1e9;
+      }
+
+      //fprintf(stderr,"QEMU Time: sec %ld, nsec %ld, ntics %llu\n",curr_time.tv_sec, curr_time.tv_nsec, (unsigned long long )nsticks);
+
+      __put_user(curr_time.tv_sec, &target_tv->tv_sec);
+      __put_user(curr_time.tv_nsec/1e3, &target_tv->tv_usec);
+    }
+#else
     __put_user(tv->tv_sec, &target_tv->tv_sec);
     __put_user(tv->tv_usec, &target_tv->tv_usec);
+#endif
 
     unlock_user_struct(target_tv, target_tv_addr, 1);
 
@@ -6076,6 +6106,9 @@ static void *clone_func(void *arg)
     pthread_cond_broadcast(&info->cond);
     pthread_mutex_unlock(&info->mutex);
     /* Wait until the parent has finished initializing the tls state.  */
+#ifdef CONFIG_ESESC
+    cpu->fid = QEMUReader_resumeThread(cpu->fid, UINT32_MAX);
+#endif
     pthread_mutex_lock(&clone_lock);
     pthread_mutex_unlock(&clone_lock);
     cpu_loop(env);
@@ -7796,12 +7829,18 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
                 do_sys_futex(g2h(ts->child_tidptr), FUTEX_WAKE, INT_MAX,
                           NULL, NULL, 0);
             }
+#ifdef CONFIG_ESESC
+            QEMUReader_finish_thread(cpu->fid); 
+#endif
             thread_cpu = NULL;
             g_free(ts);
             rcu_unregister_thread();
             pthread_exit(NULL);
         }
 
+#ifdef CONFIG_ESESC
+        QEMUReader_finish(cpu->fid); 
+#endif
         pthread_mutex_unlock(&clone_lock);
         preexit_cleanup(cpu_env, arg1);
         _exit(arg1);
@@ -9809,6 +9848,9 @@ static abi_long do_syscall1(void *cpu_env, int num, abi_long arg1,
 #ifdef __NR_exit_group
         /* new thread calls */
     case TARGET_NR_exit_group:
+#ifdef CONFIG_ESESC
+        QEMUReader_finish(cpu->fid); 
+#endif
         preexit_cleanup(cpu_env, arg1);
         return get_errno(exit_group(arg1));
 #endif

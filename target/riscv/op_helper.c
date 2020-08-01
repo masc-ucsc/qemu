@@ -24,6 +24,149 @@
 #include "exec/exec-all.h"
 #include "exec/helper-proto.h"
 
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#include "InstOpcode.h"
+
+#define AtomicAdd(ptr,val) __sync_fetch_and_add(ptr, val)
+#define AtomicSub(ptr,val) __sync_fetch_and_sub(ptr, val)
+
+volatile long long int icount = 0;
+volatile long long int tcount = 0;
+
+uint64_t esesc_mem_read(uint64_t addr);
+uint64_t esesc_mem_read(uint64_t addr) {
+  uint64_t buffer;
+
+  CPUState *other_cs = first_cpu;
+
+  CPU_FOREACH(other_cs) {
+#ifdef CONFIG_USER_ONLY
+    cpu_memory_rw_debug(other_cs, addr, &buffer, 8, 0);
+#else
+FIXME_NOT_DONE
+    // FIXME: pass fid to mem_read and potentially call the system 
+    // cpu_physical_memory_read(memaddr, myaddr, length);
+#endif
+
+    return buffer;
+  }
+  return 0;
+}
+
+void helper_esesc_dump(void);
+void helper_esesc_dump(void) {
+    CPUState *other_cs = first_cpu;
+
+    CPU_FOREACH(other_cs) {
+        printf("cpuid=%d halted=%d icount=%lld tcount=%lld\n",other_cs->fid, other_cs->halted,icount, tcount);
+    }
+}
+
+void helper_esesc_load(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_t data, uint64_t reg) {
+  if (icount>0) {
+    AtomicSub(&icount,1);
+    return;
+  }
+
+  CPUState *cpu       = env_cpu(env);
+
+  int src1 = reg & 0xFF;
+  reg      = reg >> 8;
+  reg      = reg >> 8;
+  int dest = reg & 0xFF;
+  AtomicAdd(&icount,QEMUReader_queue_load(pc, target, data, cpu->fid, src1, dest));
+}
+
+void helper_esesc_store(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_t data_new, uint64_t data_old, uint64_t reg) {
+  if (icount>0) {
+    AtomicSub(&icount,1);
+    return;
+  }
+
+  //printf("Hello pc:%llx data1:%lld data2:%lld\n",(long long)pc, (long long)data_new, (long long)data_old);
+
+  CPUState *cpu       = env_cpu(env);
+
+  int src1 = reg & 0xFF;
+  reg      = reg >> 8;
+  int src2 = reg & 0xFF;
+  reg      = reg >> 8;
+  int dest = reg & 0xFF;
+
+  AtomicAdd(&icount,QEMUReader_queue_store(pc, target, data_new, data_old, cpu->fid, src1, src2, dest));
+}
+
+void helper_esesc_ctrl(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_t op, uint64_t reg) {
+  if (icount>0) {
+    AtomicSub(&icount,1);
+    return;
+  }
+
+  CPUState *cpu       = env_cpu(env);
+
+  if (pc == target) {
+    printf("jump to itself (terminate) pc:%llx\n",(unsigned long long)pc);
+    QEMUReader_finish(cpu->fid);
+    return;
+  }
+
+  int src1 = reg & 0xFF;
+  reg      = reg >> 8;
+  int src2 = reg & 0xFF;
+  reg      = reg >> 8;
+  int dest = reg & 0xFF;
+
+  AtomicAdd(&icount,QEMUReader_queue_inst(pc, target, cpu->fid, op, src1, src2, dest));
+}
+
+void helper_esesc_ctrl_data(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_t data1, uint64_t data2, uint64_t reg) {
+  if (icount>0) {
+    AtomicSub(&icount,1);
+    return;
+  }
+
+  CPUState *cpu       = env_cpu(env);
+
+  if (pc == target) {
+    printf("jump to itself (terminate) pc:%llx\n",(long long)pc);
+    QEMUReader_finish(cpu->fid);
+    return;
+  }
+
+  int src1 = reg & 0xFF;
+  reg      = reg >> 8;
+  int src2 = reg & 0xFF;
+  reg      = reg >> 8;
+  int dest = reg & 0xFF;
+
+#if 0
+  if (pc==0x142cc)
+    fprintf(stderr,"RAW: pc=%llx addr=%llx data1=%llx data2=%llx\n",(long long)pc,(long long)target,(long long)data1,(long long)data2);
+#endif
+
+  AtomicAdd(&icount,QEMUReader_queue_ctrl_data(pc, target, data1, data2, cpu->fid, iBALU_LBRANCH, src1, src2, dest));
+}
+
+void helper_esesc_alu(CPURISCVState *env, uint64_t pc, uint64_t op, uint64_t reg) {
+  if (icount>0) {
+    AtomicSub(&icount,1);
+    return;
+  }
+
+  CPUState *cpu       = env_cpu(env);
+
+  int src1 = reg & 0xFF;
+  reg      = reg >> 8;
+  int src2 = reg & 0xFF;
+  reg      = reg >> 8;
+  int dest = reg & 0xFF;
+
+  AtomicAdd(&icount,QEMUReader_queue_inst(pc, 0, cpu->fid, op, src1, src2, dest));
+}
+
+#endif
+
 /* Exceptions processing helpers */
 void QEMU_NORETURN riscv_raise_exception(CPURISCVState *env,
                                           uint32_t exception, uintptr_t pc)

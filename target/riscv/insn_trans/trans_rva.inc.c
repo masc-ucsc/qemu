@@ -23,6 +23,7 @@ static inline bool gen_lr(DisasContext *ctx, arg_atomic *a, MemOp mop)
     TCGv src1 = tcg_temp_new();
     /* Put addr in load_res, data in load_val.  */
     gen_get_gpr(src1, a->rs1);
+    ESESC_TRACE_MEM(ctx->base.pc_next,src1,iSALU_LL, a->rs1, a->rs2, a->rd);
     if (a->rl) {
         tcg_gen_mb(TCG_MO_ALL | TCG_BAR_STRL);
     }
@@ -46,6 +47,7 @@ static inline bool gen_sc(DisasContext *ctx, arg_atomic *a, MemOp mop)
     TCGLabel *l2 = gen_new_label();
 
     gen_get_gpr(src1, a->rs1);
+    ESESC_TRACE_MEM(ctx->base.pc_next,src1,iSALU_SC, a->rs1, a->rs2, a->rd); // Atomic. Maybe new encode?
     tcg_gen_brcond_tl(TCG_COND_NE, load_res, src1, l1);
 
     gen_get_gpr(src2, a->rs2);
@@ -90,6 +92,8 @@ static bool gen_amo(DisasContext *ctx, arg_atomic *a,
 
     gen_get_gpr(src1, a->rs1);
     gen_get_gpr(src2, a->rs2);
+
+    ESESC_TRACE_MEM(ctx->base.pc_next,src1,iSALU_SC, a->rs1, a->rs2, a->rd); // Atomic
 
     (*func)(src2, src1, src2, ctx->mem_idx, mop);
 

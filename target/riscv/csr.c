@@ -23,6 +23,51 @@
 #include "qemu/main-loop.h"
 #include "exec/exec-all.h"
 
+#ifdef CONFIG_ESESC
+
+extern volatile long long int icount;
+
+static int csr_esesc_roi(CPURISCVState *env, int csrno, target_ulong *val_ulong)
+{
+  static int simpoint_roi = 1;
+
+  CPUState *cpu       = env_cpu(env);
+  uint64_t val = *val_ulong;
+
+  if ((val & 3) == 3) {
+    fprintf(stderr, "simpoint adjust maxinsns to %lld (FIXME: not implemented)\n",(long long)val>>2);
+    //s->machine->common.maxinsns = val >> 2;
+
+  }else if ((val & 3) == 2) {
+    fprintf(stderr, "simpoint terminate\n");
+    icount = 0;
+    QEMUReader_finish(cpu->fid);
+
+  } else if ((val & 1) && simpoint_roi) {
+    fprintf(stderr, "simpoint ROI already started\n");
+
+  } else if ((val & 1) == 0 && simpoint_roi) {
+    fprintf(stderr, "simpoint ROI finished\n");
+    simpoint_roi = 0;
+    QEMUReader_toggle_roi(cpu->fid);
+    icount = 0;
+
+  } else if ((val & 1) == 0 && simpoint_roi == 0) {
+    fprintf(stderr, "simpoint ROI already finished\n");
+  } else {
+    fprintf(stderr, "simpoint ROI started\n");
+
+    simpoint_roi = 1;
+    QEMUReader_toggle_roi(cpu->fid);
+    icount = 1ULL<<40; // BIG number
+  }
+
+  *val_ulong = 0;
+
+  return 0;
+}
+#endif
+
 /* CSR function table */
 static riscv_csr_operations csr_ops[];
 
@@ -1270,6 +1315,10 @@ static riscv_csr_operations csr_ops[CSR_TABLE_SIZE] = {
     [CSR_TIME] =                { ctr,  read_time                           },
 #if defined(TARGET_RISCV32)
     [CSR_TIMEH] =               { ctr,  read_timeh                          },
+#endif
+
+#ifdef CONFIG_ESESC
+    [CSR_ESESC_ROI] =           { ctr,  csr_esesc_roi                       },
 #endif
 
 #if !defined(CONFIG_USER_ONLY)

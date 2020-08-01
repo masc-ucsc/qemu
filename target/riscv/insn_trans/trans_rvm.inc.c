@@ -33,6 +33,8 @@ static bool trans_mulh(DisasContext *ctx, arg_mulh *a)
     gen_get_gpr(source1, a->rs1);
     gen_get_gpr(source2, a->rs2);
 
+    ESESC_TRACE_ALU(ctx->base.pc_next, iCALU_MULT, a->rs1, a->rs2, a->rd);
+
     tcg_gen_muls2_tl(source2, source1, source1, source2);
 
     gen_set_gpr(a->rd, source1);
@@ -55,6 +57,7 @@ static bool trans_mulhu(DisasContext *ctx, arg_mulhu *a)
     gen_get_gpr(source1, a->rs1);
     gen_get_gpr(source2, a->rs2);
 
+    ESESC_TRACE_ALU(ctx->base.pc_next, iCALU_MULT, a->rs1, a->rs2, a->rd);
     tcg_gen_mulu2_tl(source2, source1, source1, source2);
 
     gen_set_gpr(a->rd, source1);

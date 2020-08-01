@@ -615,7 +615,13 @@ static int parse_args(int argc, char **argv)
     return optind;
 }
 
+#ifdef CONFIG_ESESC
+int qemuesesc_main(int argc, char **argv, char **envp);
+
+int qemuesesc_main(int argc, char **argv, char **envp)
+#else
 int main(int argc, char **argv, char **envp)
+#endif
 {
     struct target_pt_regs regs1, *regs = &regs1;
     struct image_info info1, *info = &info1;
@@ -860,6 +866,9 @@ int main(int argc, char **argv, char **envp)
         }
         gdb_handlesig(cpu, 0);
     }
+#ifdef CONFIG_ESESC
+    cpu->fid = 0;
+#endif
     cpu_loop(env);
     /* never exits */
     return 0;

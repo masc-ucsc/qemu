@@ -495,6 +495,7 @@ auth_pam=""
 vte=""
 virglrenderer=""
 tpm=""
+esesc="no"
 libssh=""
 live_block_migration="yes"
 numa=""
@@ -1512,6 +1513,10 @@ for opt do
   ;;
   --enable-tpm) tpm="yes"
   ;;
+  --disable-esesc) esesc="no"
+  ;;
+  --enable-esesc) esesc="yes"
+  ;;
   --disable-libssh) libssh="no"
   ;;
   --enable-libssh) libssh="yes"
@@ -1914,6 +1919,7 @@ disabled with --disable-FEATURE, default is enabled if available:
   coroutine-pool  coroutine freelist (better performance)
   glusterfs       GlusterFS backend
   tpm             TPM support
+  esesc           ESESC simulation
   libssh          ssh block device support
   numa            libnuma support
   libxml2         for Parallels image format
@@ -2201,6 +2207,12 @@ if test "$static" = "yes"; then
 elif test "$pie" = "no"; then
   QEMU_CFLAGS="$CFLAGS_NOPIE $QEMU_CFLAGS"
   QEMU_LDFLAGS="$LDFLAGS_NOPIE $QEMU_LDFLAGS"
+elif test "$esesc" = "yes"; then
+  QEMU_CFLAGS="-fPIC -DESESC_CONFIG $QEMU_CFLAGS"
+  QEMU_LDFLAGS="$QEMU_LDFLAGS"
+  capstone="no"
+  modules="no"
+  plugins="no"
 elif compile_prog "-Werror -fPIE -DPIE" "-pie"; then
   QEMU_CFLAGS="-fPIE -DPIE $QEMU_CFLAGS"
   QEMU_LDFLAGS="-pie $QEMU_LDFLAGS"
@@ -8469,6 +8481,10 @@ if test "$gprof" = "yes" ; then
     ldflags="-p $ldflags"
     echo "GPROF_CFLAGS=-p" >> $config_target_mak
   fi
+fi
+
+if test "$esesc" = "yes" ; then
+  echo "CONFIG_ESESC=y" >> $config_target_mak
 fi
 
 # Newer kernels on s390 check for an S390_PGSTE program header and

@@ -21,6 +21,10 @@
 #include "qemu-common.h"
 #include "qapi/error.h"
 
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#endif
+
 #include "qemu/cutils.h"
 #include "cpu.h"
 #include "exec/exec-all.h"

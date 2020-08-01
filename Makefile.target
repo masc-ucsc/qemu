@@ -36,6 +36,10 @@ QEMU_PROG_BUILD = $(QEMU_PROG)
 endif
 endif
 
+ifdef CONFIG_ESESC
+	QEMU_PROG=libqemu.so
+endif
+
 PROGS=$(QEMU_PROG) $(QEMU_PROGW)
 STPFILES=
 

@@ -85,6 +85,99 @@ static const int tcg_memop_lookup[8] = {
 #define CASE_OP_32_64(X) case X
 #endif
 
+#ifdef CONFIG_ESESC
+#include "InstOpcode.h"
+
+#define ESESC_TRACE_LCTRL(pc,target,op,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 htarget = tcg_const_i64(target); \
+  TCGv_i64 hop     = tcg_const_i64(op); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_ctrl(cpu_env, hpc, htarget, hop, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hop); \
+  tcg_temp_free_i64(htarget); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_LBRANCH(pc,target,data1,data2,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 htarget = tcg_const_i64(target); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_ctrl_data(cpu_env, hpc, htarget, data1, data2, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(htarget); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_LCTRL2(pc,htarget,op,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 hop     = tcg_const_i64(op); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_ctrl(cpu_env, hpc, htarget, hop, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hop); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_RCTRL(pc,target,op,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 hop     = tcg_const_i64(op); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_ctrl(cpu_env, hpc, target, hop, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hop); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_MEM(pc,addr,op,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 hop     = tcg_const_i64(op); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_ctrl(cpu_env, hpc, addr, hop, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hop); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_LOAD(pc,addr,data,src1,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_load(cpu_env, hpc, addr, data, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_STORE(pc,addr,data_new,data_old,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_store(cpu_env, hpc, addr, data_new, data_old, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#define ESESC_TRACE_ALU(pc,op,src1,src2,dest) do { \
+  TCGv_i64 hpc     = tcg_const_i64(pc); \
+  TCGv_i64 hop     = tcg_const_i64(op); \
+  TCGv_i64 reg     = tcg_const_i64(((src1)&0xFF) | (((src2)&0xFF)<<8) | (((dest)&0xFF)<<16)); \
+  gen_helper_esesc_alu(cpu_env, hpc, hop, reg); \
+  tcg_temp_free_i64(reg); \
+  tcg_temp_free_i64(hop); \
+  tcg_temp_free_i64(hpc); \
+  } while(0)
+
+#else
+#define ESESC_TRACE_ALU(pc,op,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_LCTRL(pc,target,op,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_LBRANCH(pc,target,data1,data2,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_LCTRL2(pc,target,op,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_RCTRL(pc,target,op,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_MEM(pc,addr,op,src1,src2,dest) do { }while(0)
+#define ESESC_TRACE_LOAD(pc,addr,data, src1,dest) do { }while(0)
+#define ESESC_TRACE_STORE(pc,addr,data_new, data_old, src1, src2, dest) do { }while(0)
+#endif
+
+
 static inline bool has_ext(DisasContext *ctx, uint32_t ext)
 {
     return ctx->misa & ext;
@@ -337,6 +430,13 @@ static void gen_jal(DisasContext *ctx, int rd, target_ulong imm)
     }
     if (rd != 0) {
         tcg_gen_movi_tl(cpu_gpr[rd], ctx->pc_succ_insn);
+        if (rd==1)
+          ESESC_TRACE_LCTRL(ctx->base.pc_next,ctx->base.pc_next + imm,iBALU_LCALL, 0, 0, rd);
+        else
+          ESESC_TRACE_LCTRL(ctx->base.pc_next,ctx->base.pc_next + imm,iBALU_LJUMP, 0, 0, rd);
+    } else {
+      ESESC_TRACE_LCTRL(ctx->base.pc_next, ctx->base.pc_next + imm, iBALU_LJUMP,
+                        0, 0, LREG_InvalidOutput);
     }
 
     gen_goto_tb(ctx, 0, ctx->base.pc_next + imm); /* must use this for safety */
@@ -359,6 +459,9 @@ static void gen_load_c(DisasContext *ctx, uint32_t opc, int rd, int rs1,
     }
 
     tcg_gen_qemu_ld_tl(t1, t0, ctx->mem_idx, memop);
+
+    ESESC_TRACE_LOAD(ctx->base.pc_next,t0, t1, rs1, rd);
+
     gen_set_gpr(rd, t1);
     tcg_temp_free(t0);
     tcg_temp_free(t1);
@@ -378,6 +481,12 @@ static void gen_store_c(DisasContext *ctx, uint32_t opc, int rs1, int rs2,
         gen_exception_illegal(ctx);
         return;
     }
+#ifdef CONFIG_ESESC
+    TCGv d0 = tcg_temp_new();
+    tcg_gen_qemu_ld_tl(d0, t0, ctx->mem_idx, memop);
+    ESESC_TRACE_STORE(ctx->base.pc_next,t0, dat, d0, rs1, rs2, LREG_InvalidOutput);
+    tcg_temp_free(d0);
+#endif
 
     tcg_gen_qemu_st_tl(dat, t0, ctx->mem_idx, memop);
     tcg_temp_free(t0);
@@ -592,6 +701,11 @@ static bool gen_arith_imm_fn(DisasContext *ctx, arg_i *a,
     source1 = tcg_temp_new();
 
     gen_get_gpr(source1, a->rs1);
+    if(a->imm == 0 && (a->rs1 != 0)) {  //MOV instruction
+      ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->rs1, 0, a->rd);
+    }else {
+      ESESC_TRACE_ALU(ctx->base.pc_next, iAALU, a->rs1, 0, a->rd);
+    }
 
     (*func)(source1, source1, a->imm);
 
@@ -690,6 +804,11 @@ static bool gen_arith(DisasContext *ctx, arg_r *a,
 
     gen_get_gpr(source1, a->rs1);
     gen_get_gpr(source2, a->rs2);
+
+    if (func == &tcg_gen_mul_tl || func == gen_mulhsu)
+      ESESC_TRACE_ALU(ctx->base.pc_next, iCALU_MULT, a->rs1, a->rs2, a->rd);
+    else
+      ESESC_TRACE_ALU(ctx->base.pc_next, iAALU, a->rs1, a->rs2, a->rd);
 
     (*func)(source1, source1, source2);
 

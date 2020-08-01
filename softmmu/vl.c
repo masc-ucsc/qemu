@@ -113,6 +113,9 @@
 #include "qapi/qmp/qerror.h"
 #include "sysemu/iothread.h"
 #include "qemu/guest-random.h"
+#ifdef CONFIG_ESESC
+#include "esesc_qemu.h"
+#endif
 
 #define MAX_VIRTIO_CONSOLES 1
 

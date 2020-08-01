@@ -64,7 +64,16 @@ static bool trans_jalr(DisasContext *ctx, arg_jalr *a)
     }
 
     if (a->rd != 0) {
+      if (a->rd==1)
+        ESESC_TRACE_LCTRL2(ctx->base.pc_next,cpu_pc,iBALU_RCALL, a->rs1, 0, a->rd);
+      else
+        ESESC_TRACE_LCTRL2(ctx->base.pc_next,cpu_pc,iBALU_RJUMP, a->rs1, 0, a->rd);
         tcg_gen_movi_tl(cpu_gpr[a->rd], ctx->pc_succ_insn);
+    } else {
+      if(a->rs1==1)
+        ESESC_TRACE_LCTRL2(ctx->base.pc_next,cpu_pc,iBALU_RET, a->rs1, 0, LREG_InvalidOutput);
+      else
+        ESESC_TRACE_LCTRL2(ctx->base.pc_next,cpu_pc,iBALU_RJUMP, a->rs1, 0, LREG_InvalidOutput);
     }
     lookup_and_goto_ptr(ctx);
 
@@ -88,8 +97,30 @@ static bool gen_branch(DisasContext *ctx, arg_b *a, TCGCond cond)
     gen_get_gpr(source2, a->rs2);
 
     tcg_gen_brcond_tl(cond, source1, source2, l);
+
+    {
+      TCGv data1 = tcg_temp_new();
+      TCGv data2 = tcg_temp_new();
+      gen_get_gpr(data1, a->rs1);
+      gen_get_gpr(data2, a->rs2);
+      ESESC_TRACE_LBRANCH(ctx->base.pc_next, 0, data1, data2, a->rs1, a->rs2, LREG_InvalidOutput); // Not Taken path
+      tcg_temp_free(data1);
+      tcg_temp_free(data2);
+    }
+
     gen_goto_tb(ctx, 1, ctx->pc_succ_insn);
     gen_set_label(l); /* branch taken */
+
+    {
+      TCGv data1 = tcg_temp_new();
+      TCGv data2 = tcg_temp_new();
+      gen_get_gpr(data1, a->rs1);
+      gen_get_gpr(data2, a->rs2);
+      target_ulong bimm = GET_C_B_IMM(ctx->opcode);
+      ESESC_TRACE_LBRANCH(ctx->base.pc_next, ctx->base.pc_next + bimm, data1, data2, a->rs1, a->rs2, LREG_InvalidOutput); // Taken path
+      tcg_temp_free(data1);
+      tcg_temp_free(data2);
+    }
 
     if (!has_ext(ctx, RVC) && ((ctx->base.pc_next + a->imm) & 0x3)) {
         /* misaligned */

@@ -44,7 +44,7 @@ uint64_t esesc_mem_read(uint64_t addr) {
 #ifdef CONFIG_USER_ONLY
     cpu_memory_rw_debug(other_cs, addr, &buffer, 8, 0);
 #else
-FIXME_NOT_DONE
+    printf("FIXME: ESESC API not done for SoC\n");
     // FIXME: pass fid to mem_read and potentially call the system 
     // cpu_physical_memory_read(memaddr, myaddr, length);
 #endif

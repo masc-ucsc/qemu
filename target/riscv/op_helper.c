@@ -117,7 +117,7 @@ void helper_esesc_ctrl(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_
   reg      = reg >> 8;
   int dest = reg & 0xFF;
 
-  AtomicAdd(&icount,QEMUReader_queue_inst(pc, target, cpu->fid, op, src1, src2, dest));
+  AtomicAdd(&icount,QEMUReader_queue_ctrl_data(pc, target, 0, 0, cpu->fid, op, src1, src2, dest));
 }
 
 void helper_esesc_ctrl_data(CPURISCVState *env, uint64_t pc, uint64_t target, uint64_t data1, uint64_t data2, uint64_t reg) {

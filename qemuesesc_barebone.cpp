@@ -56,7 +56,10 @@ extern "C" uint64_t QEMUReader_queue_load(uint64_t pc, uint64_t addr, uint64_t d
 }
 extern "C" uint64_t QEMUReader_queue_inst(uint64_t pc, uint64_t addr, int fid, int op, int src1, int src2, int dest, void *env) {
   // printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
-  printf("alu  pc:%x\n", pc);
+  	if (addr != 0x0)
+			printf("ctrl  pc:%d\n", pc);
+		else
+			printf("alu  pc:%x\n", pc);
   return 0;
 }
 

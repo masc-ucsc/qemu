@@ -35,7 +35,8 @@ static bool trans_lui(DisasContext *ctx, arg_lui *a)
 static bool trans_auipc(DisasContext *ctx, arg_auipc *a)
 {
     if (a->rd != 0) {
-        tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm + ctx->base.pc_next);
+        ESESC_TRACE_ALU(ctx->base.pc_next, iAALU, 0, 0, a->rd);
+				tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm + ctx->base.pc_next);
     }
     return true;
 }
@@ -172,7 +173,7 @@ static bool gen_load(DisasContext *ctx, arg_lb *a, MemOp memop)
     TCGv t1 = tcg_temp_new();
     gen_get_gpr(t0, a->rs1);
     tcg_gen_addi_tl(t0, t0, a->imm);
-
+		ESESC_TRACE_LOAD(ctx->base.pc_next, t0, t0, a->rs1, a->rd);
     tcg_gen_qemu_ld_tl(t1, t0, ctx->mem_idx, memop);
     gen_set_gpr(a->rd, t1);
     tcg_temp_free(t0);

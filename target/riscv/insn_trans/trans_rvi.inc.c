@@ -26,17 +26,12 @@ static bool trans_illegal(DisasContext *ctx, arg_empty *a)
 
 static bool trans_lui(DisasContext *ctx, arg_lui *a)
 {
-		TCGv t0 = tcg_temp_new();
-		TCGv t1 = tcg_temp_new();
-		gen_get_gpr(t0,a->imm);
     if (a->rd != 0) {
-    		//ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->imm, 0, a->rd);
-				ESESC_TRACE_LOAD(ctx->base.pc_next, t1, t0, 0, a->rd);
+    		ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->imm, 0, a->rd);
+				//ESESC_TRACE_LOAD(ctx->base.pc_next, t1, t0, 0, a->rd);
 				tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm);
     }
-		tcg_temp_free(t0);
-		tcg_temp_free(t1);
-    return true;
+		return true;
 }
 
 static bool trans_auipc(DisasContext *ctx, arg_auipc *a)

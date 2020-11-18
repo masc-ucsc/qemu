@@ -31,6 +31,26 @@ extern "C" void QEMUReader_goto_sleep(void *env);
 extern "C" void QEMUReader_wakeup_from_sleep(void *env);
 extern "C" void esesc_set_timing(uint32_t fid);
 
+uint64_t last_pc = 0;
+uint8_t ctrl_flag = 0;
+
+uint8_t checkpc(uint64_t pc){
+		if (ctrl_flag == 1){
+				ctrl_flag = 0;
+				if (pc != last_pc && last_pc != 0){
+						printf("error for ctrl jar pc: 0x%llx\n",(long long)last_pc);
+						return 0;
+				}
+		}
+		else if (pc == last_pc+2||pc == last_pc+4||last_pc == 0){
+				last_pc = pc;
+				return 1;
+		}
+		else{
+				printf("error pc increment: 0x%llx -> 0x%llx\n",(long long)last_pc,(long long)pc);
+				return 0;
+		}
+}
 extern "C" uint32_t QEMUReader_getFid(FlowID last_fid) {
   return 0;
 }
@@ -51,26 +71,31 @@ extern "C" void QEMUReader_toggle_roi(uint32_t fid) {
 }
 
 extern "C" uint64_t QEMUReader_queue_load(uint64_t pc, uint64_t addr, uint64_t data, uint16_t fid, uint16_t src1, uint16_t dest) {
-  printf("ld   pc:%x\n", pc);
+ 	if (checkpc(pc))
+		printf("ld   pc:%x\n", pc);
   return 0;
 }
 extern "C" uint64_t QEMUReader_queue_inst(uint64_t pc, uint64_t addr, int fid, int op, int src1, int src2, int dest, void *env) {
   // printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
-  	if (addr != 0x0)
-			printf("ctrl  pc:%d\n", pc);
-		else
+ 	if (checkpc(pc))
 			printf("alu  pc:%x\n", pc);
   return 0;
 }
 
 extern "C" uint64_t QEMUReader_queue_store(uint64_t pc, uint64_t addr, uint64_t data_new, uint64_t data_old, uint16_t fid, uint16_t src1, uint16_t src2, uint16_t dest) {
-  printf("st   pc:%x\n", pc);
+	if (checkpc(pc))
+			printf("st   pc:%x\n", pc);
   return 0;
 }
 
-extern "C" uint64_t QEMUReader_queue_ctrl_data(uint64_t pc, uint64_t addr, uint64_t data1, uint64_t data2, uint16_t fid, uint16_t op, uint16_t src1, uint16_t src2, uint16_t dest) {
-  printf("ctrl pc:%x\n", pc);
-  return 0;
+extern "C" uint64_t QEMUReader_queue_ctrl_data(uint64_t pc, uint64_t addr, uint64_t data1, uint64_t data2, uint16_t fid, uint16_t op, uint16_t src1, uint16_t src2, uint16_t dest) { 
+	//printf("pc=0x%llx addr=0x%llx last=0x%llx\n",(long long)pc,(long long)addr,last_pc);
+	if (checkpc(pc)){
+		 printf("ctrl pc:%x\n", pc);
+		 last_pc = addr;
+		 ctrl_flag = 1;
+	}
+	return 0;
 }
 
 extern "C" void QEMUReader_finish(uint32_t fid) {

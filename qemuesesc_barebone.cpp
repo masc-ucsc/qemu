@@ -24,6 +24,9 @@ Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <vector>
+#include <string>
+using namespace std;
 
 typedef uint32_t FlowID; // DInst.h
 
@@ -51,6 +54,30 @@ uint8_t checkpc(uint64_t pc){
 				return 0;
 		}
 }
+
+string trans_reg(uint16_t src){
+		vector<string> register_list = {"","ra","sp","gp","tp","t0","t1","t2","s0","s1"};
+		string res;
+		if (src>=0 && src <=9){
+				return(register_list[src]);
+		}
+		else if (src>=10 && src<=17){
+				res = "x"+to_string(src-10);
+				return(res);
+		}
+		else if (src>=18 && src<=27){
+				res = "s"+to_string(src-16);
+				return(res);
+		}
+		else if (src>=28 && src<=31){
+				res = "t"+to_string(src-25);
+				return(res);
+		}
+		else 
+				return(res);
+}
+
+
 extern "C" uint32_t QEMUReader_getFid(FlowID last_fid) {
   return 0;
 }
@@ -72,26 +99,26 @@ extern "C" void QEMUReader_toggle_roi(uint32_t fid) {
 
 extern "C" uint64_t QEMUReader_queue_load(uint64_t pc, uint64_t addr, uint64_t data, uint16_t fid, uint16_t src1, uint16_t dest) {
  	if (checkpc(pc))
-		printf("ld   pc:%llx\t\tsrc1=%d\t\tdest=%d\taddr=0x%llx\n", (long long)pc, src1, dest, (long long)addr);
-  return 0;
+		printf("ld   pc:0x%llx\t\tsrc1:%s\t\t\t\tdest:%s\t\taddr=0x%llx\n", (long long)pc, trans_reg(src1).c_str(), trans_reg(dest).c_str(), (long long)addr);
+	return 0;
 }
 extern "C" uint64_t QEMUReader_queue_inst(uint64_t pc, uint64_t addr, int fid, int op, int src1, int src2, int dest, void *env) {
   //printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
  	if (checkpc(pc))
-		printf("alu  pc:0x%llx\top=%d\tsrc1=%d\tsrc2=%d\tdest=%d\n",(long long)pc, op, src1, src2, dest);
+		printf("alu  pc:0x%llx\top=%d\tsrc1:%s\t\tsrc2:%s\t\tdest:%s\n",(long long)pc, op, trans_reg(src1).c_str(), trans_reg(src2).c_str(), trans_reg(dest).c_str());
   return 0;
 }
 
 extern "C" uint64_t QEMUReader_queue_store(uint64_t pc, uint64_t addr, uint64_t data_new, uint64_t data_old, uint16_t fid, uint16_t src1, uint16_t src2, uint16_t dest) {
 	if (checkpc(pc))
-			printf("st   pc:0x%llx\t\tsrc1=%d\tsrc2=%d\t\taddr=0x%llx\n", (long long)pc,src1,src2,(long long)addr);
+			printf("st   pc:0x%llx\t\tsrc1:%s\t\tsrc2:%s\t\t\t\taddr=0x%llx\n", (long long)pc,trans_reg(src1).c_str(),trans_reg(src2).c_str(),(long long)addr);
   return 0;
 }
 
 extern "C" uint64_t QEMUReader_queue_ctrl_data(uint64_t pc, uint64_t addr, uint64_t data1, uint64_t data2, uint16_t fid, uint16_t op, uint16_t src1, uint16_t src2, uint16_t dest) { 
 	//printf("pc=0x%llx addr=0x%llx last=0x%llx\n",(long long)pc,(long long)addr,last_pc);
 	if (checkpc(pc)){
-		 printf("ctrl pc:0x%llx\tjump to pc:0x%llx\n\n", (long long)pc,(long long)addr);
+		 printf("\nctrl pc:0x%llx\top=%d\tsrc1:%s\t\tsrc2:%s\t\tdest:%s\t\tjump to pc:0x%llx\n\n", (long long)pc, op,trans_reg(src1).c_str(),trans_reg(src2).c_str(),trans_reg(dest).c_str(),(long long)addr);
 		 last_pc = addr;
 		 ctrl_flag = 1;
 	}

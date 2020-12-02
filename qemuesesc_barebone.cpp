@@ -53,6 +53,7 @@ uint8_t checkpc(uint64_t pc){
 				printf("error pc increment: 0x%llx -> 0x%llx\n",(long long)last_pc,(long long)pc);
 				return 0;
 		}
+		return 1;
 }
 
 string trans_reg(uint16_t src){
@@ -62,7 +63,7 @@ string trans_reg(uint16_t src){
 				return(register_list[src]);
 		}
 		else if (src>=10 && src<=17){
-				res = "x"+to_string(src-10);
+				res = "a"+to_string(src-10);
 				return(res);
 		}
 		else if (src>=18 && src<=27){
@@ -103,7 +104,7 @@ extern "C" uint64_t QEMUReader_queue_load(uint64_t pc, uint64_t addr, uint64_t d
 	return 0;
 }
 extern "C" uint64_t QEMUReader_queue_inst(uint64_t pc, uint64_t addr, int fid, int op, int src1, int src2, int dest, void *env) {
-  //printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
+		//printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
  	if (checkpc(pc))
 		printf("alu  pc:0x%llx\top=%d\tsrc1:%s\t\tsrc2:%s\t\tdest:%s\n",(long long)pc, op, trans_reg(src1).c_str(), trans_reg(src2).c_str(), trans_reg(dest).c_str());
   return 0;

@@ -709,7 +709,7 @@ static bool gen_arith_imm_fn(DisasContext *ctx, arg_i *a,
 
     (*func)(source1, source1, a->imm);
 
-    gen_set_gpr(a->rd, source1);
+		gen_set_gpr(a->rd, source1);
     tcg_temp_free(source1);
     return true;
 }
@@ -723,6 +723,12 @@ static bool gen_arith_imm_tl(DisasContext *ctx, arg_i *a,
 
     gen_get_gpr(source1, a->rs1);
     tcg_gen_movi_tl(source2, a->imm);
+		
+		if(a->imm == 0 && (a->rs1 != 0)){
+				ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->rs1, 0, a->rd);
+		}else {
+				ESESC_TRACE_ALU(ctx->base.pc_next, iAALU, a->rs1, 0, a->rd);
+		}
 
     (*func)(source1, source1, source2);
 

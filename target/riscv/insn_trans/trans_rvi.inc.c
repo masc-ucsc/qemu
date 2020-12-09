@@ -27,15 +27,17 @@ static bool trans_illegal(DisasContext *ctx, arg_empty *a)
 static bool trans_lui(DisasContext *ctx, arg_lui *a)
 {
     if (a->rd != 0) {
-        tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm);
+    		ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->imm, 0, a->rd);
+				//ESESC_TRACE_LOAD(ctx->base.pc_next, t1, t0, 0, a->rd);
+				tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm);
     }
-    return true;
+		return true;
 }
 
 static bool trans_auipc(DisasContext *ctx, arg_auipc *a)
 {
     if (a->rd != 0) {
-        ESESC_TRACE_ALU(ctx->base.pc_next, iAALU, 0, 0, a->rd);
+        ESESC_TRACE_ALU(ctx->base.pc_next, iRALU, a->imm, 0, a->rd);
 				tcg_gen_movi_tl(cpu_gpr[a->rd], a->imm + ctx->base.pc_next);
     }
     return true;
@@ -209,13 +211,16 @@ static bool trans_lhu(DisasContext *ctx, arg_lhu *a)
 static bool gen_store(DisasContext *ctx, arg_sb *a, MemOp memop)
 {
     TCGv t0 = tcg_temp_new();
-    TCGv dat = tcg_temp_new();
+    TCGv t1 = tcg_temp_new();//
+		TCGv dat = tcg_temp_new();
     gen_get_gpr(t0, a->rs1);
     tcg_gen_addi_tl(t0, t0, a->imm);
     gen_get_gpr(dat, a->rs2);
-
+		tcg_gen_qemu_ld_tl(t1,t0, ctx->mem_idx, memop);//
     tcg_gen_qemu_st_tl(dat, t0, ctx->mem_idx, memop);
+		ESESC_TRACE_STORE(ctx->base.pc_next, t0, dat, t1, a->rs1, a->rs2, 0);//
     tcg_temp_free(t0);
+		tcg_temp_free(t1);//
     tcg_temp_free(dat);
     return true;
 }

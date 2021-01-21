@@ -50,6 +50,7 @@ uint8_t checkpc(uint64_t pc) {
   } else {
     printf("error pc increment: 0x%llx -> 0x%llx\n", (long long)last_pc,
            (long long)pc);
+    last_pc = pc;
     return 0;
   }
   return 1;

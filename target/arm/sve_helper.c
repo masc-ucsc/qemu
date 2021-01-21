@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -889,8 +889,9 @@ static intptr_t last_active_element(uint64_t *g, intptr_t words, intptr_t esz)
     return (intptr_t)-1 << esz;
 }
 
-uint32_t HELPER(sve_pfirst)(void *vd, void *vg, uint32_t words)
+uint32_t HELPER(sve_pfirst)(void *vd, void *vg, uint32_t pred_desc)
 {
+    intptr_t words = DIV_ROUND_UP(FIELD_EX32(pred_desc, PREDDESC, OPRSZ), 8);
     uint32_t flags = PREDTEST_INIT;
     uint64_t *d = vd, *g = vg;
     intptr_t i = 0;
@@ -914,8 +915,8 @@ uint32_t HELPER(sve_pfirst)(void *vd, void *vg, uint32_t words)
 
 uint32_t HELPER(sve_pnext)(void *vd, void *vg, uint32_t pred_desc)
 {
-    intptr_t words = extract32(pred_desc, 0, SIMD_OPRSZ_BITS);
-    intptr_t esz = extract32(pred_desc, SIMD_DATA_SHIFT, 2);
+    intptr_t words = DIV_ROUND_UP(FIELD_EX32(pred_desc, PREDDESC, OPRSZ), 8);
+    intptr_t esz = FIELD_EX32(pred_desc, PREDDESC, ESZ);
     uint32_t flags = PREDTEST_INIT;
     uint64_t *d = vd, *g = vg, esz_mask;
     intptr_t i, next;
@@ -956,85 +957,43 @@ uint32_t HELPER(sve_pnext)(void *vd, void *vg, uint32_t pred_desc)
     return flags;
 }
 
-/* Store zero into every active element of Zd.  We will use this for two
- * and three-operand predicated instructions for which logic dictates a
- * zero result.  In particular, logical shift by element size, which is
- * otherwise undefined on the host.
- *
- * For element sizes smaller than uint64_t, we use tables to expand
- * the N bits of the controlling predicate to a byte mask, and clear
- * those bytes.
+/*
+ * Copy Zn into Zd, and store zero into inactive elements.
+ * If inv, store zeros into the active elements.
  */
-void HELPER(sve_clr_b)(void *vd, void *vg, uint32_t desc)
-{
-    intptr_t i, opr_sz = simd_oprsz(desc) / 8;
-    uint64_t *d = vd;
-    uint8_t *pg = vg;
-    for (i = 0; i < opr_sz; i += 1) {
-        d[i] &= ~expand_pred_b(pg[H1(i)]);
-    }
-}
-
-void HELPER(sve_clr_h)(void *vd, void *vg, uint32_t desc)
-{
-    intptr_t i, opr_sz = simd_oprsz(desc) / 8;
-    uint64_t *d = vd;
-    uint8_t *pg = vg;
-    for (i = 0; i < opr_sz; i += 1) {
-        d[i] &= ~expand_pred_h(pg[H1(i)]);
-    }
-}
-
-void HELPER(sve_clr_s)(void *vd, void *vg, uint32_t desc)
-{
-    intptr_t i, opr_sz = simd_oprsz(desc) / 8;
-    uint64_t *d = vd;
-    uint8_t *pg = vg;
-    for (i = 0; i < opr_sz; i += 1) {
-        d[i] &= ~expand_pred_s(pg[H1(i)]);
-    }
-}
-
-void HELPER(sve_clr_d)(void *vd, void *vg, uint32_t desc)
-{
-    intptr_t i, opr_sz = simd_oprsz(desc) / 8;
-    uint64_t *d = vd;
-    uint8_t *pg = vg;
-    for (i = 0; i < opr_sz; i += 1) {
-        if (pg[H1(i)] & 1) {
-            d[i] = 0;
-        }
-    }
-}
-
-/* Copy Zn into Zd, and store zero into inactive elements.  */
 void HELPER(sve_movz_b)(void *vd, void *vn, void *vg, uint32_t desc)
 {
     intptr_t i, opr_sz = simd_oprsz(desc) / 8;
+    uint64_t inv = -(uint64_t)(simd_data(desc) & 1);
     uint64_t *d = vd, *n = vn;
     uint8_t *pg = vg;
+
     for (i = 0; i < opr_sz; i += 1) {
-        d[i] = n[i] & expand_pred_b(pg[H1(i)]);
+        d[i] = n[i] & (expand_pred_b(pg[H1(i)]) ^ inv);
     }
 }
 
 void HELPER(sve_movz_h)(void *vd, void *vn, void *vg, uint32_t desc)
 {
     intptr_t i, opr_sz = simd_oprsz(desc) / 8;
+    uint64_t inv = -(uint64_t)(simd_data(desc) & 1);
     uint64_t *d = vd, *n = vn;
     uint8_t *pg = vg;
+
     for (i = 0; i < opr_sz; i += 1) {
-        d[i] = n[i] & expand_pred_h(pg[H1(i)]);
+        d[i] = n[i] & (expand_pred_h(pg[H1(i)]) ^ inv);
     }
 }
 
 void HELPER(sve_movz_s)(void *vd, void *vn, void *vg, uint32_t desc)
 {
     intptr_t i, opr_sz = simd_oprsz(desc) / 8;
+    uint64_t inv = -(uint64_t)(simd_data(desc) & 1);
     uint64_t *d = vd, *n = vn;
     uint8_t *pg = vg;
+
     for (i = 0; i < opr_sz; i += 1) {
-        d[i] = n[i] & expand_pred_s(pg[H1(i)]);
+        d[i] = n[i] & (expand_pred_s(pg[H1(i)]) ^ inv);
     }
 }
 
@@ -1043,8 +1002,10 @@ void HELPER(sve_movz_d)(void *vd, void *vn, void *vg, uint32_t desc)
     intptr_t i, opr_sz = simd_oprsz(desc) / 8;
     uint64_t *d = vd, *n = vn;
     uint8_t *pg = vg;
+    uint8_t inv = simd_data(desc);
+
     for (i = 0; i < opr_sz; i += 1) {
-        d[i] = n[i] & -(uint64_t)(pg[H1(i)] & 1);
+        d[i] = n[i] & -(uint64_t)((pg[H1(i)] ^ inv) & 1);
     }
 }
 
@@ -1907,9 +1868,9 @@ static uint64_t compress_bits(uint64_t x, int n)
 
 void HELPER(sve_zip_p)(void *vd, void *vn, void *vm, uint32_t pred_desc)
 {
-    intptr_t oprsz = extract32(pred_desc, 0, SIMD_OPRSZ_BITS) + 2;
-    int esz = extract32(pred_desc, SIMD_DATA_SHIFT, 2);
-    intptr_t high = extract32(pred_desc, SIMD_DATA_SHIFT + 2, 1);
+    intptr_t oprsz = FIELD_EX32(pred_desc, PREDDESC, OPRSZ);
+    int esz = FIELD_EX32(pred_desc, PREDDESC, ESZ);
+    intptr_t high = FIELD_EX32(pred_desc, PREDDESC, DATA);
     uint64_t *d = vd;
     intptr_t i;
 
@@ -1968,9 +1929,9 @@ void HELPER(sve_zip_p)(void *vd, void *vn, void *vm, uint32_t pred_desc)
 
 void HELPER(sve_uzp_p)(void *vd, void *vn, void *vm, uint32_t pred_desc)
 {
-    intptr_t oprsz = extract32(pred_desc, 0, SIMD_OPRSZ_BITS) + 2;
-    int esz = extract32(pred_desc, SIMD_DATA_SHIFT, 2);
-    int odd = extract32(pred_desc, SIMD_DATA_SHIFT + 2, 1) << esz;
+    intptr_t oprsz = FIELD_EX32(pred_desc, PREDDESC, OPRSZ);
+    int esz = FIELD_EX32(pred_desc, PREDDESC, ESZ);
+    int odd = FIELD_EX32(pred_desc, PREDDESC, DATA) << esz;
     uint64_t *d = vd, *n = vn, *m = vm;
     uint64_t l, h;
     intptr_t i;
@@ -2025,9 +1986,9 @@ void HELPER(sve_uzp_p)(void *vd, void *vn, void *vm, uint32_t pred_desc)
 
 void HELPER(sve_trn_p)(void *vd, void *vn, void *vm, uint32_t pred_desc)
 {
-    intptr_t oprsz = extract32(pred_desc, 0, SIMD_OPRSZ_BITS) + 2;
-    uintptr_t esz = extract32(pred_desc, SIMD_DATA_SHIFT, 2);
-    bool odd = extract32(pred_desc, SIMD_DATA_SHIFT + 2, 1);
+    intptr_t oprsz = FIELD_EX32(pred_desc, PREDDESC, OPRSZ);
+    int esz = FIELD_EX32(pred_desc, PREDDESC, ESZ);
+    int odd = FIELD_EX32(pred_desc, PREDDESC, DATA);
     uint64_t *d = vd, *n = vn, *m = vm;
     uint64_t mask;
     int shr, shl;
@@ -2075,8 +2036,8 @@ static uint8_t reverse_bits_8(uint8_t x, int n)
 
 void HELPER(sve_rev_p)(void *vd, void *vn, uint32_t pred_desc)
 {
-    intptr_t oprsz = extract32(pred_desc, 0, SIMD_OPRSZ_BITS) + 2;
-    int esz = extract32(pred_desc, SIMD_DATA_SHIFT, 2);
+    intptr_t oprsz = FIELD_EX32(pred_desc, PREDDESC, OPRSZ);
+    int esz = FIELD_EX32(pred_desc, PREDDESC, ESZ);
     intptr_t i, oprsz_2 = oprsz / 2;
 
     if (oprsz <= 8) {
@@ -2105,8 +2066,8 @@ void HELPER(sve_rev_p)(void *vd, void *vn, uint32_t pred_desc)
 
 void HELPER(sve_punpk_p)(void *vd, void *vn, uint32_t pred_desc)
 {
-    intptr_t oprsz = extract32(pred_desc, 0, SIMD_OPRSZ_BITS) + 2;
-    intptr_t high = extract32(pred_desc, SIMD_DATA_SHIFT + 2, 1);
+    intptr_t oprsz = FIELD_EX32(pred_desc, PREDDESC, OPRSZ);
+    intptr_t high = FIELD_EX32(pred_desc, PREDDESC, DATA);
     uint64_t *d = vd;
     intptr_t i;
 

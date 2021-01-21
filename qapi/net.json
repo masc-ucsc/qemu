@@ -1,4 +1,5 @@
 # -*- Mode: Python -*-
+# vim: filetype=python
 #
 
 ##
@@ -19,7 +20,7 @@
 # Returns: Nothing on success
 #          If @name is not a valid network device, DeviceNotFound
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Notes: Not all network adapters support setting link status.  This command
 #        will succeed even if the network adapter does not support link status
@@ -41,7 +42,7 @@
 #
 # Additional arguments depend on the type.
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Returns: Nothing on success
 #          If @type is not a valid network backend, DeviceNotFound
@@ -66,7 +67,7 @@
 # Returns: Nothing on success
 #          If @id is not a valid network backend, DeviceNotFound
 #
-# Since: 0.14.0
+# Since: 0.14
 #
 # Example:
 #
@@ -456,7 +457,7 @@
 #
 # Since: 2.7
 #
-# @vhost-vdpa since 5.1
+#        @vhost-vdpa since 5.1
 ##
 { 'enum': 'NetClientDriver',
   'data': [ 'none', 'nic', 'user', 'tap', 'l2tpv3', 'socket', 'vde',

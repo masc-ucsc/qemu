@@ -22,13 +22,13 @@
 #include "qapi/qmp/json-parser.h"
 #include "qapi/qmp/qdict.h"
 #include "qapi/qmp/qjson.h"
-#include "qapi/qmp/qstring.h"
 #include "guest-agent-core.h"
 #include "qga-qapi-init-commands.h"
 #include "qapi/qmp/qerror.h"
 #include "qapi/error.h"
 #include "channel.h"
 #include "qemu/bswap.h"
+#include "qemu/cutils.h"
 #include "qemu/help_option.h"
 #include "qemu/sockets.h"
 #include "qemu/systemd.h"
@@ -527,8 +527,7 @@ fail:
 
 static int send_response(GAState *s, const QDict *rsp)
 {
-    const char *buf;
-    QString *payload_qstr, *response_qstr;
+    GString *response;
     GIOStatus status;
 
     g_assert(s->channel);
@@ -537,25 +536,19 @@ static int send_response(GAState *s, const QDict *rsp)
         return 0;
     }
 
-    payload_qstr = qobject_to_json(QOBJECT(rsp));
-    if (!payload_qstr) {
+    response = qobject_to_json(QOBJECT(rsp));
+    if (!response) {
         return -EINVAL;
     }
 
     if (s->delimit_response) {
         s->delimit_response = false;
-        response_qstr = qstring_new();
-        qstring_append_chr(response_qstr, QGA_SENTINEL_BYTE);
-        qstring_append(response_qstr, qstring_get_str(payload_qstr));
-        qobject_unref(payload_qstr);
-    } else {
-        response_qstr = payload_qstr;
+        g_string_prepend_c(response, QGA_SENTINEL_BYTE);
     }
 
-    qstring_append_chr(response_qstr, '\n');
-    buf = qstring_get_str(response_qstr);
-    status = ga_channel_write_all(s->channel, buf, strlen(buf));
-    qobject_unref(response_qstr);
+    g_string_append_c(response, '\n');
+    status = ga_channel_write_all(s->channel, response->str, response->len);
+    g_string_free(response, true);
     if (status != G_IO_STATUS_NORMAL) {
         return -EIO;
     }
@@ -578,7 +571,7 @@ static void process_event(void *opaque, QObject *obj, Error *err)
     }
 
     g_debug("processing command");
-    rsp = qmp_dispatch(&ga_commands, obj, false);
+    rsp = qmp_dispatch(&ga_commands, obj, false, NULL);
 
 end:
     ret = send_response(s, rsp);
@@ -968,7 +961,7 @@ static void config_load(GAConfig *config)
 {
     GError *gerr = NULL;
     GKeyFile *keyfile;
-    const char *conf = g_getenv("QGA_CONF") ?: QGA_CONF_DEFAULT;
+    g_autofree char *conf = g_strdup(g_getenv("QGA_CONF")) ?: get_relocated_path(QGA_CONF_DEFAULT);
 
     /* read system config */
     keyfile = g_key_file_new();
@@ -1027,7 +1020,7 @@ end:
     if (gerr &&
         !(gerr->domain == G_FILE_ERROR && gerr->code == G_FILE_ERROR_NOENT)) {
         g_critical("error loading configuration from path: %s, %s",
-                   QGA_CONF_DEFAULT, gerr->message);
+                   conf, gerr->message);
         exit(EXIT_FAILURE);
     }
     g_clear_error(&gerr);
@@ -1141,7 +1134,7 @@ static void config_parse(GAConfig *config, int argc, char **argv)
 #ifdef CONFIG_FSFREEZE
         case 'F':
             g_free(config->fsfreeze_hook);
-            config->fsfreeze_hook = g_strdup(optarg ?: QGA_FSFREEZE_HOOK_DEFAULT);
+            config->fsfreeze_hook = optarg ? g_strdup(optarg) : get_relocated_path(QGA_FSFREEZE_HOOK_DEFAULT);
             break;
 #endif
         case 't':
@@ -1463,6 +1456,7 @@ int main(int argc, char **argv)
 
     config->log_level = G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL;
 
+    qemu_init_exec_dir(argv[0]);
     qga_qmp_init_marshal(&ga_commands);
 
     init_dfl_pathnames();

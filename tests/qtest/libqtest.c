@@ -20,7 +20,7 @@
 #include <sys/wait.h>
 #include <sys/un.h>
 
-#include "libqtest.h"
+#include "libqos/libqtest.h"
 #include "qemu-common.h"
 #include "qemu/ctype.h"
 #include "qemu/cutils.h"
@@ -63,6 +63,7 @@ struct QTestState
     bool irq_level[MAX_IRQ];
     GString *rx;
     QTestTransportOps ops;
+    GList *pending_events;
 };
 
 static GHookList abrt_hooks;
@@ -109,8 +110,13 @@ static int socket_accept(int sock)
     struct timeval timeout = { .tv_sec = SOCKET_TIMEOUT,
                                .tv_usec = 0 };
 
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, (void *)&timeout,
-               sizeof(timeout));
+    if (qemu_setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO,
+                        (void *)&timeout, sizeof(timeout))) {
+        fprintf(stderr, "%s failed to set SO_RCVTIMEO: %s\n",
+                __func__, strerror(errno));
+        close(sock);
+        return -1;
+    }
 
     do {
         addrlen = sizeof(addr);
@@ -279,6 +285,7 @@ QTestState *qtest_init_without_qmp_handshake(const char *extra_args)
 
     g_test_message("starting QEMU: %s", command);
 
+    s->pending_events = NULL;
     s->wstatus = 0;
     s->expected_status = 0;
     s->qemu_pid = fork();
@@ -386,6 +393,13 @@ void qtest_quit(QTestState *s)
     close(s->fd);
     close(s->qmp_fd);
     g_string_free(s->rx, true);
+
+    for (GList *it = s->pending_events; it != NULL; it = it->next) {
+        qobject_unref((QDict *)it->data);
+    }
+
+    g_list_free(s->pending_events);
+
     g_free(s);
 }
 
@@ -531,6 +545,7 @@ redo:
         }
     } else {
         g_strfreev(words);
+        words = NULL;
     }
 
     return words;
@@ -605,6 +620,19 @@ QDict *qmp_fd_receive(int fd)
 
 QDict *qtest_qmp_receive(QTestState *s)
 {
+    while (true) {
+        QDict *response = qtest_qmp_receive_dict(s);
+
+        if (!qdict_get_try_str(response, "event")) {
+            return response;
+        }
+        /* Stash the event for a later consumption */
+        s->pending_events = g_list_append(s->pending_events, response);
+    }
+}
+
+QDict *qtest_qmp_receive_dict(QTestState *s)
+{
     return qmp_fd_receive(s->qmp_fd);
 }
 
@@ -624,27 +652,25 @@ void qmp_fd_vsend_fds(int fd, int *fds, size_t fds_num,
     /* No need to send anything for an empty QObject.  */
     if (qobj) {
         int log = getenv("QTEST_LOG") != NULL;
-        QString *qstr = qobject_to_json(qobj);
-        const char *str;
+        GString *str = qobject_to_json(qobj);
 
         /*
          * BUG: QMP doesn't react to input until it sees a newline, an
          * object, or an array.  Work-around: give it a newline.
          */
-        qstring_append_chr(qstr, '\n');
-        str = qstring_get_str(qstr);
+        g_string_append_c(str, '\n');
 
         if (log) {
-            fprintf(stderr, "%s", str);
+            fprintf(stderr, "%s", str->str);
         }
         /* Send QMP request */
         if (fds && fds_num > 0) {
-            socket_send_fds(fd, fds, fds_num, str, qstring_get_length(qstr));
+            socket_send_fds(fd, fds, fds_num, str->str, str->len);
         } else {
-            socket_send(fd, str, qstring_get_length(qstr));
+            socket_send(fd, str->str, str->len);
         }
 
-        qobject_unref(qstr);
+        g_string_free(str, true);
         qobject_unref(qobj);
     }
 }
@@ -771,12 +797,33 @@ void qtest_qmp_send_raw(QTestState *s, const char *fmt, ...)
     va_end(ap);
 }
 
+QDict *qtest_qmp_event_ref(QTestState *s, const char *event)
+{
+    while (s->pending_events) {
+
+        GList *first = s->pending_events;
+        QDict *response = (QDict *)first->data;
+
+        s->pending_events = g_list_delete_link(s->pending_events, first);
+
+        if (!strcmp(qdict_get_str(response, "event"), event)) {
+            return response;
+        }
+        qobject_unref(response);
+    }
+    return NULL;
+}
+
 QDict *qtest_qmp_eventwait_ref(QTestState *s, const char *event)
 {
-    QDict *response;
+    QDict *response = qtest_qmp_event_ref(s, event);
+
+    if (response) {
+        return response;
+    }
 
     for (;;) {
-        response = qtest_qmp_receive(s);
+        response = qtest_qmp_receive_dict(s);
         if ((qdict_haskey(response, "event")) &&
             (strcmp(qdict_get_str(response, "event"), event) == 0)) {
             return response;
@@ -804,12 +851,6 @@ char *qtest_vhmp(QTestState *s, const char *fmt, va_list ap)
                      " 'arguments': {'command-line': %s}}",
                      cmd);
     ret = g_strdup(qdict_get_try_str(resp, "return"));
-    while (ret == NULL && qdict_get_try_str(resp, "event")) {
-        /* Ignore asynchronous QMP events */
-        qobject_unref(resp);
-        resp = qtest_qmp_receive(s);
-        ret = g_strdup(qdict_get_try_str(resp, "return"));
-    }
     g_assert(ret);
     qobject_unref(resp);
     g_free(cmd);
@@ -830,9 +871,14 @@ char *qtest_hmp(QTestState *s, const char *fmt, ...)
 const char *qtest_get_arch(void)
 {
     const char *qemu = qtest_qemu_binary();
-    const char *end = strrchr(qemu, '/');
+    const char *end = strrchr(qemu, '-');
 
-    return end + strlen("/qemu-system-");
+    if (!end) {
+        fprintf(stderr, "Can't determine architecture from binary name.\n");
+        abort();
+    }
+
+    return end + 1;
 }
 
 bool qtest_get_irq(QTestState *s, int num)
@@ -1149,9 +1195,9 @@ void qtest_qmp_assert_success(QTestState *qts, const char *fmt, ...)
 
     g_assert(response);
     if (!qdict_haskey(response, "return")) {
-        QString *s = qobject_to_json_pretty(QOBJECT(response));
-        g_test_message("%s", qstring_get_str(s));
-        qobject_unref(s);
+        GString *s = qobject_to_json_pretty(QOBJECT(response), true);
+        g_test_message("%s", s->str);
+        g_string_free(s, true);
     }
     g_assert(qdict_haskey(response, "return"));
     qobject_unref(response);
@@ -1233,7 +1279,7 @@ void qtest_cb_for_every_machine(void (*cb)(const char *machine),
         g_assert(qstr);
         mname = qstring_get_str(qstr);
         /* Ignore machines that cannot be used for qtests */
-        if (!memcmp("xenfv", mname, 5) || g_str_equal("xenpv", mname)) {
+        if (!strncmp("xenfv", mname, 5) || g_str_equal("xenpv", mname)) {
             continue;
         }
         if (!skip_old_versioned || !qtest_is_old_versioned_machine(mname)) {
@@ -1243,35 +1289,6 @@ void qtest_cb_for_every_machine(void (*cb)(const char *machine),
 
     qtest_quit(qts);
     qobject_unref(response);
-}
-
-QDict *qtest_qmp_receive_success(QTestState *s,
-                                 void (*event_cb)(void *opaque,
-                                                  const char *event,
-                                                  QDict *data),
-                                 void *opaque)
-{
-    QDict *response, *ret, *data;
-    const char *event;
-
-    for (;;) {
-        response = qtest_qmp_receive(s);
-        g_assert(!qdict_haskey(response, "error"));
-        ret = qdict_get_qdict(response, "return");
-        if (ret) {
-            break;
-        }
-        event = qdict_get_str(response, "event");
-        data = qdict_get_qdict(response, "data");
-        if (event_cb) {
-            event_cb(opaque, event, data);
-        }
-        qobject_unref(response);
-    }
-
-    qobject_ref(ret);
-    qobject_unref(response);
-    return ret;
 }
 
 /*
@@ -1309,13 +1326,6 @@ void qtest_qmp_device_add(QTestState *qts, const char *driver, const char *id,
     qobject_unref(args);
 }
 
-static void device_deleted_cb(void *opaque, const char *name, QDict *data)
-{
-    bool *got_event = opaque;
-
-    g_assert_cmpstr(name, ==, "DEVICE_DELETED");
-    *got_event = true;
-}
 
 /*
  * Generic hot-unplugging test via the device_del QMP command.
@@ -1332,24 +1342,17 @@ static void device_deleted_cb(void *opaque, const char *name, QDict *data)
  * and this one:
  *
  * {"return": {}}
- *
- * But the order of arrival may vary - so we've got to detect both.
  */
 void qtest_qmp_device_del(QTestState *qts, const char *id)
 {
-    bool got_event = false;
     QDict *rsp;
 
-    qtest_qmp_send(qts, "{'execute': 'device_del', 'arguments': {'id': %s}}",
-                   id);
-    rsp = qtest_qmp_receive_success(qts, device_deleted_cb, &got_event);
+    rsp = qtest_qmp(qts, "{'execute': 'device_del', 'arguments': {'id': %s}}",
+                    id);
+
+    g_assert(qdict_haskey(rsp, "return"));
     qobject_unref(rsp);
-    if (!got_event) {
-        rsp = qtest_qmp_receive(qts);
-        g_assert_cmpstr(qdict_get_try_str(rsp, "event"),
-                        ==, "DEVICE_DELETED");
-        qobject_unref(rsp);
-    }
+    qtest_qmp_eventwait(qts, "DEVICE_DELETED");
 }
 
 bool qmp_rsp_is_err(QDict *rsp)
@@ -1359,7 +1362,7 @@ bool qmp_rsp_is_err(QDict *rsp)
     return !!error;
 }
 
-void qmp_assert_error_class(QDict *rsp, const char *class)
+void qmp_expect_error_and_unref(QDict *rsp, const char *class)
 {
     QDict *error = qdict_get_qdict(rsp, "error");
 
@@ -1403,6 +1406,7 @@ QTestState *qtest_inproc_init(QTestState **s, bool log, const char* arch,
 {
     QTestState *qts;
     qts = g_new0(QTestState, 1);
+    qts->pending_events = NULL;
     *s = qts; /* Expose qts early on, since the query endianness relies on it */
     qts->wstatus = 0;
     for (int i = 0; i < MAX_IRQ; i++) {

@@ -85,8 +85,13 @@ Line width
 Lines should be 80 characters; try not to make them longer.
 
 Sometimes it is hard to do, especially when dealing with QEMU subsystems
-that use long function or symbol names.  Even in that case, do not make
-lines much longer than 80 characters.
+that use long function or symbol names. If wrapping the line at 80 columns
+is obviously less readable and more awkward, prefer not to wrap it; better
+to have an 85 character line than one which is awkwardly wrapped.
+
+Even in that case, try not to make lines much longer than 80 characters.
+(The checkpatch script will warn at 100 characters, but this is intended
+as a guard against obviously-overlength lines, not a target.)
 
 Rationale:
 
@@ -109,8 +114,41 @@ names are lower_case_with_underscores_ending_with_a_t, like the POSIX
 uint64_t and family.  Note that this last convention contradicts POSIX
 and is therefore likely to be changed.
 
-When wrapping standard library functions, use the prefix ``qemu_`` to alert
-readers that they are seeing a wrapped version; otherwise avoid this prefix.
+Variable Naming Conventions
+---------------------------
+
+A number of short naming conventions exist for variables that use
+common QEMU types. For example, the architecture independent CPUState
+is often held as a ``cs`` pointer variable, whereas the concrete
+CPUArchState is usually held in a pointer called ``env``.
+
+Likewise, in device emulation code the common DeviceState is usually
+called ``dev``.
+
+Function Naming Conventions
+---------------------------
+
+Wrapped version of standard library or GLib functions use a ``qemu_``
+prefix to alert readers that they are seeing a wrapped version, for
+example ``qemu_strtol`` or ``qemu_mutex_lock``.  Other utility functions
+that are widely called from across the codebase should not have any
+prefix, for example ``pstrcpy`` or bit manipulation functions such as
+``find_first_bit``.
+
+The ``qemu_`` prefix is also used for functions that modify global
+emulator state, for example ``qemu_add_vm_change_state_handler``.
+However, if there is an obvious subsystem-specific prefix it should be
+used instead.
+
+Public functions from a file or subsystem (declared in headers) tend
+to have a consistent prefix to show where they came from. For example,
+``tlb_`` for functions from ``cputlb.c`` or ``cpu_`` for functions
+from cpus.c.
+
+If there are two versions of a function to be called with or without a
+lock held, the function that expects the lock to be already held
+usually uses the suffix ``_locked``.
+
 
 Block structure
 ===============

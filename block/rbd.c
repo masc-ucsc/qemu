@@ -232,7 +232,7 @@ static void qemu_rbd_parse_filename(const char *filename, QDict *options,
 
     if (keypairs) {
         qdict_put(options, "=keyvalue-pairs",
-                  qobject_to_json(QOBJECT(keypairs)));
+                  qstring_from_gstring(qobject_to_json(QOBJECT(keypairs))));
     }
 
 done:
@@ -340,48 +340,6 @@ static void qemu_rbd_memset(RADOSCB *rcb, int64_t offs)
         memset(rcb->buf + offs, 0, rcb->size - offs);
     }
 }
-
-static QemuOptsList runtime_opts = {
-    .name = "rbd",
-    .head = QTAILQ_HEAD_INITIALIZER(runtime_opts.head),
-    .desc = {
-        {
-            .name = "pool",
-            .type = QEMU_OPT_STRING,
-            .help = "Rados pool name",
-        },
-        {
-            .name = "namespace",
-            .type = QEMU_OPT_STRING,
-            .help = "Rados namespace name in the pool",
-        },
-        {
-            .name = "image",
-            .type = QEMU_OPT_STRING,
-            .help = "Image name in the pool",
-        },
-        {
-            .name = "conf",
-            .type = QEMU_OPT_STRING,
-            .help = "Rados config file location",
-        },
-        {
-            .name = "snapshot",
-            .type = QEMU_OPT_STRING,
-            .help = "Ceph snapshot name",
-        },
-        {
-            /* maps to 'id' in rados_create() */
-            .name = "user",
-            .type = QEMU_OPT_STRING,
-            .help = "Rados id name",
-        },
-        /*
-         * server.* extracted manually, see qemu_rbd_mon_host()
-         */
-        { /* end of list */ }
-    },
-};
 
 /* FIXME Deprecate and remove keypairs or make it available in QMP. */
 static int qemu_rbd_do_create(BlockdevCreateOptions *options,
@@ -1289,6 +1247,7 @@ static QemuOptsList qemu_rbd_create_opts = {
 
 static const char *const qemu_rbd_strong_runtime_opts[] = {
     "pool",
+    "namespace",
     "image",
     "conf",
     "snapshot",

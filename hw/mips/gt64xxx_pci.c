@@ -35,6 +35,7 @@
 #include "hw/irq.h"
 #include "exec/address-spaces.h"
 #include "trace.h"
+#include "qom/object.h"
 
 #define GT_REGS                 (0x1000 >> 2)
 
@@ -230,10 +231,9 @@
 
 #define TYPE_GT64120_PCI_HOST_BRIDGE "gt64120"
 
-#define GT64120_PCI_HOST_BRIDGE(obj) \
-    OBJECT_CHECK(GT64120State, (obj), TYPE_GT64120_PCI_HOST_BRIDGE)
+OBJECT_DECLARE_SIMPLE_TYPE(GT64120State, GT64120_PCI_HOST_BRIDGE)
 
-typedef struct GT64120State {
+struct GT64120State {
     PCIHostState parent_obj;
 
     uint32_t regs[GT_REGS];
@@ -243,7 +243,7 @@ typedef struct GT64120State {
     PCI_MAPPING_ENTRY(ISD);
     MemoryRegion pci0_mem;
     AddressSpace pci0_mem_as;
-} GT64120State;
+};
 
 /* Adjust range to avoid touching space which isn't mappable via PCI */
 /*
@@ -982,7 +982,7 @@ static int gt64120_pci_map_irq(PCIDevice *pci_dev, int irq_num)
 {
     int slot;
 
-    slot = (pci_dev->devfn >> 3);
+    slot = PCI_SLOT(pci_dev->devfn);
 
     switch (slot) {
     /* PIIX4 USB */

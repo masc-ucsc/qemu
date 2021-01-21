@@ -332,9 +332,9 @@ class Docker(object):
                          (uname, uid, uname))
 
         tmp_df.write("\n")
-        tmp_df.write("LABEL com.qemu.dockerfile-checksum=%s" % (checksum))
+        tmp_df.write("LABEL com.qemu.dockerfile-checksum=%s\n" % (checksum))
         for f, c in extra_files_cksum:
-            tmp_df.write("LABEL com.qemu.%s-checksum=%s" % (f, c))
+            tmp_df.write("LABEL com.qemu.%s-checksum=%s\n" % (f, c))
 
         tmp_df.flush()
 
@@ -377,7 +377,7 @@ class Docker(object):
             if self._command[0] == "podman":
                 cmd.insert(0, '--userns=keep-id')
 
-        ret = self._do_check(["run", "--label",
+        ret = self._do_check(["run", "--rm", "--label",
                              "com.qemu.instance.uuid=" + label] + cmd,
                              quiet=quiet)
         if not keep:
@@ -616,7 +616,7 @@ class CcCommand(SubCommand):
         if argv and argv[0] == "--":
             argv = argv[1:]
         cwd = os.getcwd()
-        cmd = ["--rm", "-w", cwd,
+        cmd = ["-w", cwd,
                "-v", "%s:%s:rw" % (cwd, cwd)]
         if args.paths:
             for p in args.paths:

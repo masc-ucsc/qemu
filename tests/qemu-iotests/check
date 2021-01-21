@@ -44,7 +44,7 @@ then
         _init_error "failed to obtain source tree name from check symlink"
     fi
     source_iotests=$(cd "$source_iotests"; pwd) || _init_error "failed to enter source tree"
-    build_iotests=$PWD
+    build_iotests=$(cd "$(dirname "$0")"; pwd)
 else
     # called from the source tree
     source_iotests=$PWD
@@ -270,6 +270,7 @@ image protocol options
     -rbd                test rbd
     -sheepdog           test sheepdog
     -nbd                test nbd
+    -fuse               test fuse
     -ssh                test ssh
     -nfs                test nfs
 
@@ -379,6 +380,11 @@ testlist options
 
         -nbd)
             IMGPROTO=nbd
+            xpand=false
+            ;;
+
+        -fuse)
+            IMGPROTO=fuse
             xpand=false
             ;;
 
@@ -577,11 +583,11 @@ if [ -z "$QEMU_PROG" ]
 then
     if [ -x "$build_iotests/qemu" ]; then
         export QEMU_PROG="$build_iotests/qemu"
-    elif [ -x "$build_root/${qemu_arch}-softmmu/qemu-system-${qemu_arch}" ]; then
-        export QEMU_PROG="$build_root/${qemu_arch}-softmmu/qemu-system-${qemu_arch}"
+    elif [ -x "$build_root/qemu-system-${qemu_arch}" ]; then
+        export QEMU_PROG="$build_root/qemu-system-${qemu_arch}"
     else
         pushd "$build_root" > /dev/null
-        for binary in *-softmmu/qemu-system-*
+        for binary in qemu-system-*
         do
             if [ -x "$binary" ]
             then
@@ -643,6 +649,17 @@ if [ -z $QEMU_NBD_PROG ]; then
     fi
 fi
 export QEMU_NBD_PROG="$(type -p "$QEMU_NBD_PROG")"
+
+if [ -z "$QSD_PROG" ]; then
+    if [ -x "$build_iotests/qemu-storage-daemon" ]; then
+        export QSD_PROG="$build_iotests/qemu-storage-daemon"
+    elif [ -x "$build_root/storage-daemon/qemu-storage-daemon" ]; then
+        export QSD_PROG="$build_root/storage-daemon/qemu-storage-daemon"
+    else
+        _init_error "qemu-storage-daemon not found"
+    fi
+fi
+export QSD_PROG="$(type -p "$QSD_PROG")"
 
 if [ -x "$build_iotests/socket_scm_helper" ]
 then

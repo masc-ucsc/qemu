@@ -6,7 +6,7 @@
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
  * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
+ * version 2.1 of the License, or (at your option) any later version.
  *
  * This library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -26,15 +26,9 @@
 #include "block/aio.h"
 
 #define TYPE_QIO_CHANNEL "qio-channel"
-#define QIO_CHANNEL(obj)                                    \
-    OBJECT_CHECK(QIOChannel, (obj), TYPE_QIO_CHANNEL)
-#define QIO_CHANNEL_CLASS(klass)                                    \
-    OBJECT_CLASS_CHECK(QIOChannelClass, klass, TYPE_QIO_CHANNEL)
-#define QIO_CHANNEL_GET_CLASS(obj)                                  \
-    OBJECT_GET_CLASS(QIOChannelClass, obj, TYPE_QIO_CHANNEL)
+OBJECT_DECLARE_TYPE(QIOChannel, QIOChannelClass,
+                    QIO_CHANNEL)
 
-typedef struct QIOChannel QIOChannel;
-typedef struct QIOChannelClass QIOChannelClass;
 
 #define QIO_CHANNEL_ERR_BLOCK -2
 
@@ -98,7 +92,8 @@ struct QIOChannel {
  * provide additional optional features.
  *
  * Consult the corresponding public API docs for a description
- * of the semantics of each callback
+ * of the semantics of each callback. io_shutdown in particular
+ * must be thread-safe, terminate quickly and must not block.
  */
 struct QIOChannelClass {
     ObjectClass parent;
@@ -515,6 +510,8 @@ int qio_channel_close(QIOChannel *ioc,
  * caller may check for the feature flag
  * QIO_CHANNEL_FEATURE_SHUTDOWN prior to calling
  * this method.
+ *
+ * This function is thread-safe, terminates quickly and does not block.
  *
  * Returns: 0 on success, -1 on error
  */

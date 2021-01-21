@@ -18,7 +18,6 @@
 #include "hw/boards.h"
 #include "qemu/log.h"
 #include "exec/address-spaces.h"
-#include "sysemu/runstate.h"
 #include "sysemu/sysemu.h"
 #include "hw/arm/armv7m.h"
 #include "hw/char/pl011.h"
@@ -28,6 +27,7 @@
 #include "migration/vmstate.h"
 #include "hw/misc/unimp.h"
 #include "cpu.h"
+#include "qom/object.h"
 
 #define GPIO_A 0
 #define GPIO_B 1
@@ -58,10 +58,9 @@ typedef const struct {
 /* General purpose timer module.  */
 
 #define TYPE_STELLARIS_GPTM "stellaris-gptm"
-#define STELLARIS_GPTM(obj) \
-    OBJECT_CHECK(gptm_state, (obj), TYPE_STELLARIS_GPTM)
+OBJECT_DECLARE_SIMPLE_TYPE(gptm_state, STELLARIS_GPTM)
 
-typedef struct gptm_state {
+struct gptm_state {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
@@ -81,7 +80,7 @@ typedef struct gptm_state {
     /* The timers have an alternate output used to trigger the ADC.  */
     qemu_irq trigger;
     qemu_irq irq;
-} gptm_state;
+};
 
 static void gptm_update_irq(gptm_state *s)
 {
@@ -720,10 +719,9 @@ static int stellaris_sys_init(uint32_t base, qemu_irq irq,
 /* I2C controller.  */
 
 #define TYPE_STELLARIS_I2C "stellaris-i2c"
-#define STELLARIS_I2C(obj) \
-    OBJECT_CHECK(stellaris_i2c_state, (obj), TYPE_STELLARIS_I2C)
+OBJECT_DECLARE_SIMPLE_TYPE(stellaris_i2c_state, STELLARIS_I2C)
 
-typedef struct {
+struct stellaris_i2c_state {
     SysBusDevice parent_obj;
 
     I2CBus *bus;
@@ -736,7 +734,7 @@ typedef struct {
     uint32_t mimr;
     uint32_t mris;
     uint32_t mcr;
-} stellaris_i2c_state;
+};
 
 #define STELLARIS_I2C_MCS_BUSY    0x01
 #define STELLARIS_I2C_MCS_ERROR   0x02
@@ -933,10 +931,11 @@ static void stellaris_i2c_init(Object *obj)
 #define STELLARIS_ADC_FIFO_FULL     0x1000
 
 #define TYPE_STELLARIS_ADC "stellaris-adc"
-#define STELLARIS_ADC(obj) \
-    OBJECT_CHECK(stellaris_adc_state, (obj), TYPE_STELLARIS_ADC)
+typedef struct StellarisADCState stellaris_adc_state;
+DECLARE_INSTANCE_CHECKER(stellaris_adc_state, STELLARIS_ADC,
+                         TYPE_STELLARIS_ADC)
 
-typedef struct StellarisADCState {
+struct StellarisADCState {
     SysBusDevice parent_obj;
 
     MemoryRegion iomem;
@@ -956,7 +955,7 @@ typedef struct StellarisADCState {
     uint32_t ssctl[4];
     uint32_t noise;
     qemu_irq irq[4];
-} stellaris_adc_state;
+};
 
 static uint32_t stellaris_adc_fifo_read(stellaris_adc_state *s, int n)
 {
@@ -1206,14 +1205,6 @@ static void stellaris_adc_init(Object *obj)
     qdev_init_gpio_in(dev, stellaris_adc_trigger, 1);
 }
 
-static
-void do_sys_reset(void *opaque, int n, int level)
-{
-    if (level) {
-        qemu_system_reset_request(SHUTDOWN_CAUSE_GUEST_RESET);
-    }
-}
-
 /* Board init.  */
 static stellaris_board_info stellaris_boards[] = {
   { "LM3S811EVB",
@@ -1317,9 +1308,6 @@ static void stellaris_init(MachineState *ms, stellaris_board_info *board)
     /* This will exit with an error if the user passed us a bad cpu_type */
     sysbus_realize_and_unref(SYS_BUS_DEVICE(nvic), &error_fatal);
 
-    qdev_connect_gpio_out_named(nvic, "SYSRESETREQ", 0,
-                                qemu_allocate_irq(&do_sys_reset, NULL, 0));
-
     if (board->dc1 & (1 << 16)) {
         dev = sysbus_create_varargs(TYPE_STELLARIS_ADC, 0x40038000,
                                     qdev_get_gpio_in(nvic, 14),
@@ -1409,8 +1397,8 @@ static void stellaris_init(MachineState *ms, stellaris_board_info *board)
              */
             bus = qdev_get_child_bus(dev, "ssi");
 
-            sddev = ssi_create_slave(bus, "ssi-sd");
-            ssddev = ssi_create_slave(bus, "ssd0323");
+            sddev = ssi_create_peripheral(bus, "ssi-sd");
+            ssddev = ssi_create_peripheral(bus, "ssd0323");
             gpio_out[GPIO_D][0] = qemu_irq_split(
                     qdev_get_gpio_in_named(sddev, SSI_GPIO_CS, 0),
                     qdev_get_gpio_in_named(ssddev, SSI_GPIO_CS, 0));

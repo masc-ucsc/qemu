@@ -51,22 +51,22 @@ extern "C" void QEMUReader_toggle_roi(uint32_t fid) {
 }
 
 extern "C" uint64_t QEMUReader_queue_load(uint64_t pc, uint64_t addr, uint64_t data, uint16_t fid, uint16_t src1, uint16_t dest) {
-  printf("ld   pc:%x\n", pc);
+  printf("ld   pc:%lx\n", pc);
   return 0;
 }
 extern "C" uint64_t QEMUReader_queue_inst(uint64_t pc, uint64_t addr, int fid, int op, int src1, int src2, int dest, void *env) {
   // printf("%d pc=0x%llx addr=0x%llx op=%d src1=%d src2=%d dest=%d\n",fid,(long long)pc,(long long)addr, op, src1, src2, dest);
-  printf("alu  pc:%x\n", pc);
+  printf("alu  pc:%lx\n", pc);
   return 0;
 }
 
 extern "C" uint64_t QEMUReader_queue_store(uint64_t pc, uint64_t addr, uint64_t data_new, uint64_t data_old, uint16_t fid, uint16_t src1, uint16_t src2, uint16_t dest) {
-  printf("st   pc:%x\n", pc);
+  printf("st   pc:%lx\n", pc);
   return 0;
 }
 
 extern "C" uint64_t QEMUReader_queue_ctrl_data(uint64_t pc, uint64_t addr, uint64_t data1, uint64_t data2, uint16_t fid, uint16_t op, uint16_t src1, uint16_t src2, uint16_t dest) {
-  printf("ctrl pc:%x\n", pc);
+  printf("ctrl pc:%lx\n", pc);
   return 0;
 }
 

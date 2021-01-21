@@ -25,6 +25,7 @@
 
 #include "qemu/osdep.h"
 #include "qemu-common.h"
+#include "qemu/datadir.h"
 #include "qemu/units.h"
 #include "qapi/error.h"
 #include "hw/pci/pci.h"
@@ -38,25 +39,26 @@
 #include "hw/or-irq.h"
 #include "exec/address-spaces.h"
 #include "elf.h"
+#include "qom/object.h"
 
 #define TYPE_RAVEN_PCI_DEVICE "raven"
 #define TYPE_RAVEN_PCI_HOST_BRIDGE "raven-pcihost"
 
-#define RAVEN_PCI_DEVICE(obj) \
-    OBJECT_CHECK(RavenPCIState, (obj), TYPE_RAVEN_PCI_DEVICE)
+OBJECT_DECLARE_SIMPLE_TYPE(RavenPCIState, RAVEN_PCI_DEVICE)
 
-typedef struct RavenPCIState {
+struct RavenPCIState {
     PCIDevice dev;
 
     uint32_t elf_machine;
     char *bios_name;
     MemoryRegion bios;
-} RavenPCIState;
+};
 
-#define RAVEN_PCI_HOST_BRIDGE(obj) \
-    OBJECT_CHECK(PREPPCIState, (obj), TYPE_RAVEN_PCI_HOST_BRIDGE)
+typedef struct PRePPCIState PREPPCIState;
+DECLARE_INSTANCE_CHECKER(PREPPCIState, RAVEN_PCI_HOST_BRIDGE,
+                         TYPE_RAVEN_PCI_HOST_BRIDGE)
 
-typedef struct PRePPCIState {
+struct PRePPCIState {
     PCIHostState parent_obj;
 
     qemu_or_irq *or_irq;
@@ -75,7 +77,7 @@ typedef struct PRePPCIState {
 
     int contiguous_map;
     bool is_legacy_prep;
-} PREPPCIState;
+};
 
 #define BIOS_SIZE (1 * MiB)
 

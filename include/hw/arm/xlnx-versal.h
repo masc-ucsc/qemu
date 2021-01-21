@@ -20,9 +20,11 @@
 #include "hw/dma/xlnx-zdma.h"
 #include "hw/net/cadence_gem.h"
 #include "hw/rtc/xlnx-zynqmp-rtc.h"
+#include "qom/object.h"
+#include "hw/usb/xlnx-usb-subsystem.h"
 
 #define TYPE_XLNX_VERSAL "xlnx-versal"
-#define XLNX_VERSAL(obj) OBJECT_CHECK(Versal, (obj), TYPE_XLNX_VERSAL)
+OBJECT_DECLARE_SIMPLE_TYPE(Versal, XLNX_VERSAL)
 
 #define XLNX_VERSAL_NR_ACPUS   2
 #define XLNX_VERSAL_NR_UARTS   2
@@ -31,7 +33,7 @@
 #define XLNX_VERSAL_NR_SDS     2
 #define XLNX_VERSAL_NR_IRQS    192
 
-typedef struct Versal {
+struct Versal {
     /*< private >*/
     SysBusDevice parent_obj;
 
@@ -58,6 +60,7 @@ typedef struct Versal {
             PL011State uart[XLNX_VERSAL_NR_UARTS];
             CadenceGEMState gem[XLNX_VERSAL_NR_GEMS];
             XlnxZDMA adma[XLNX_VERSAL_NR_ADMAS];
+            VersalUsb2 usb;
         } iou;
     } lpd;
 
@@ -74,7 +77,7 @@ typedef struct Versal {
         MemoryRegion *mr_ddr;
         uint32_t psci_conduit;
     } cfg;
-} Versal;
+};
 
 /* Memory-map and IRQ definitions. Copied a subset from
  * auto-generated files.  */
@@ -87,6 +90,7 @@ typedef struct Versal {
 
 #define VERSAL_UART0_IRQ_0         18
 #define VERSAL_UART1_IRQ_0         19
+#define VERSAL_USB0_IRQ_0          22
 #define VERSAL_GEM0_IRQ_0          56
 #define VERSAL_GEM0_WAKE_IRQ_0     57
 #define VERSAL_GEM1_IRQ_0          58
@@ -123,6 +127,12 @@ typedef struct Versal {
 
 #define MM_OCM                      0xfffc0000U
 #define MM_OCM_SIZE                 0x40000
+
+#define MM_USB2_CTRL_REGS           0xFF9D0000
+#define MM_USB2_CTRL_REGS_SIZE      0x10000
+
+#define MM_USB_0                    0xFE200000
+#define MM_USB_0_SIZE               0x10000
 
 #define MM_TOP_DDR                  0x0
 #define MM_TOP_DDR_SIZE             0x80000000U
